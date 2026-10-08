@@ -1,0 +1,19 @@
+name: QKernel
+options:
+  bundleIdPrefix: com.huu
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  QKernel:
+    type: application
+    platform: iOS
+    sources:
+      - path: QKernel/App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.huu.qkernel
+        INFOPLIST_FILE: QKernel/App/Info.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: "5.9"
