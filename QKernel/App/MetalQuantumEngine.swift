@@ -1,40 +1,68 @@
 import Foundation
 import Metal
 
+let kQuantumMSL = """
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void h_gate_float(device float2 *state [[buffer(0)]],
+                         constant uint &qubit [[buffer(1)]],
+                         constant uint &nQubits [[buffer(2)]],
+                         uint gid [[thread_position_in_grid]]) {
+    uint dim = 1u << nQubits;
+    if (gid >= dim) return;
+    uint mask = 1u << qubit;
+    if (gid & mask) return;
+    uint j = gid | mask;
+    float2 a = state[gid];
+    float2 b = state[j];
+    const float inv_sqrt2 = 0.7071067811865476f;
+    state[gid] = (a + b) * inv_sqrt2;
+    state[j]   = (a - b) * inv_sqrt2;
+}
+
+kernel void init_zero(device float2 *state [[buffer(0)]],
+                      uint gid [[thread_position_in_grid]]) {
+    state[gid] = float2(0.0f, 0.0f);
+}
+"""
+
 final class MetalQuantumEngine {
     static let shared = MetalQuantumEngine()
 
     let device: MTLDevice
     let queue: MTLCommandQueue
     let hPipeline: MTLComputePipelineState
-    let cnotPipeline: MTLComputePipelineState
     let zeroPipeline: MTLComputePipelineState
 
     private init() {
         guard let d = MTLCreateSystemDefaultDevice(),
-              let q = d.makeCommandQueue(),
-              let lib = d.makeDefaultLibrary(),
-              let hf = lib.makeFunction(name: "h_gate_float"),
-              let cf = lib.makeFunction(name: "cnot_float"),
-              let zf = lib.makeFunction(name: "init_zero")
-        else { fatalError("Metal init failed") }
+              let q = d.makeCommandQueue()
+        else { fatalError("Metal device init failed") }
         self.device = d
         self.queue = q
-        self.hPipeline = try! d.makeComputePipelineState(function: hf)
-        self.cnotPipeline = try! d.makeComputePipelineState(function: cf)
-        self.zeroPipeline = try! d.makeComputePipelineState(function: zf)
+
+        let lib: MTLLibrary
+        do {
+            lib = try d.makeLibrary(source: kQuantumMSL, options: nil)
+        } catch {
+            fatalError("Metal shader compile failed: \(error)")
+        }
+        self.hPipeline = try! d.makeComputePipelineState(
+            function: lib.makeFunction(name: "h_gate_float")!)
+        self.zeroPipeline = try! d.makeComputePipelineState(
+            function: lib.makeFunction(name: "init_zero")!)
     }
 
     func runHSequence(nQubits: Int = 24) -> String {
         let elementCount = 1 << nQubits
-        let bufferSize = elementCount * 8  // float2 = 8 bytes
+        let bufferSize = elementCount * 8
         guard let state = device.makeBuffer(length: bufferSize,
                                             options: .storageModeShared)
         else {
             return "FAIL: buffer alloc (\(bufferSize >> 20) MB)"
         }
 
-        // init |0...0>
         if let cmd = queue.makeCommandBuffer(),
            let enc = cmd.makeComputeCommandEncoder() {
             enc.setComputePipelineState(zeroPipeline)
@@ -49,7 +77,7 @@ final class MetalQuantumEngine {
 
         let ptr = state.contents().bindMemory(to: Float.self,
                                               capacity: elementCount * 2)
-        ptr[0] = 1.0  // |0> amplitude
+        ptr[0] = 1.0
 
         let start = Date()
         for q in 0..<nQubits {
@@ -58,9 +86,8 @@ final class MetalQuantumEngine {
         let elapsed = Date().timeIntervalSince(start)
 
         let a0re = ptr[0]
-        let a0im = ptr[1]
         let ms = elapsed * 1000.0
-        return String(format: "24q H×24: %.2f ms, amp[0]=(%.6f, %.6f)", ms, a0re, a0im)
+        return String(format: "24q Hx24: %.2f ms, amp[0].re=%.6f", ms, a0re)
     }
 
     private func applyH(_ buffer: MTLBuffer, qubit: Int, nQubits: Int) {

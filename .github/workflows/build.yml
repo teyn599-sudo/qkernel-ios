@@ -10,9 +10,6 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Install Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
-
       - name: Generate Xcode project
         run: xcodegen generate
 
