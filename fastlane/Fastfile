@@ -1,0 +1,35 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and sign QKernel"
+  lane :sign do
+    register_device(
+      name: "QKernel iPhone",
+      udid: ENV["UDID"],
+      username: ENV["APPLE_ID"],
+      password: ENV["APPLE_PASSWORD"]
+    )
+    cert(
+      username: ENV["APPLE_ID"],
+      password: ENV["APPLE_PASSWORD"],
+      development: true,
+      output_path: "fastlane/certs",
+      keychain_name: "fastlane_keychain"
+    )
+    sigh(
+      username: ENV["APPLE_ID"],
+      password: ENV["APPLE_PASSWORD"],
+      app_identifier: "com.huu.qkernel",
+      development: true,
+      output_path: "fastlane/profiles"
+    )
+    gym(
+      project: "QKernel.xcodeproj",
+      scheme: "QKernel",
+      configuration: "Release",
+      export_method: "development",
+      output_name: "QKernel-signed.ipa",
+      output_directory: "fastlane/output"
+    )
+  end
+end

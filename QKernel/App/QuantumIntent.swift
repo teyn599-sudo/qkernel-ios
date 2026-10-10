@@ -1,9 +1,12 @@
 import AppIntents
+import Metal
 
-struct RunQuantumEngineIntent: AppIntent {
-    static var title: LocalizedStringResource = "Run Quantum Matrix"
-    static var description = IntentDescription("Run 24-qubit quantum matrix on iPhone GPU")
-    static var openAppWhenRun: Bool = false
+struct WriteQuantumStateIntent: AppIntent {
+    static var title: LocalizedStringResource = "寫入量子態矩陣"
+    static var description = IntentDescription("在 iPhone GPU 上建立並演化 24-qubit 量子態")
+
+    // 必須開啟 App：512MB 分配 + 演化，超過背景時間限制
+    static var openAppWhenRun: Bool = true
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
@@ -17,7 +20,7 @@ struct RunQuantumEngineIntent: AppIntent {
 struct QKernelShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: RunQuantumEngineIntent(),
+            intent: WriteQuantumStateIntent(),
             phrases: [
                 "Run quantum in \(.applicationName)",
                 "Quantum matrix in \(.applicationName)",

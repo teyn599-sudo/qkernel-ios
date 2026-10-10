@@ -1,4 +1,4 @@
-name: Build iOS App
+name: Build and Sign iOS App
 on: [push, workflow_dispatch]
 
 jobs:
@@ -6,33 +6,24 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
+      - name: Install tools
+        run: brew install xcodegen fastlane
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Build
+      - name: Create keychain
         run: |
-          xcodebuild -project QKernel.xcodeproj \
-            -scheme QKernel \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
-
-      - name: Package .app
-        run: |
-          mkdir -p Payload
-          cp -r build/Build/Products/Release-iphoneos/QKernel.app Payload/
-          zip -r QKernel.ipa Payload
-
-      - name: Upload .ipa
+          security create-keychain -p actions fastlane_keychain
+          security default-keychain -s fastlane_keychain
+          security unlock-keychain -p actions fastlane_keychain
+          security set-keychain-settings -t 3600 -u fastlane_keychain
+      - name: Sign
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          UDID: ${{ secrets.UDID }}
+        run: fastlane sign
+      - name: Upload signed ipa
         uses: actions/upload-artifact@v4
         with:
-          name: QKernel-ipa
-          path: QKernel.ipa
+          name: QKernel-signed
+          path: fastlane/output/QKernel-signed.ipa
